@@ -1,8 +1,11 @@
 from PIL import Image
-from math import sin, cos, pi
+from math import sin, cos, pi, sqrt
+from random import randrange
 
 SETTINGS = {
-    "filename":"test.bmp",
+    #"filename":"test.bmp",
+    #"filename":"test2.png",
+    "filename":"monalisa.jpg",
 }
 
 def load_image(filename):
@@ -27,16 +30,19 @@ def save_image(im_obj, filename):
         """
         im_obj.save(filename + ".bmp", "BMP")
 
-def rgb_sort(colours):
+def luminosity(r,g,b):
+    return sqrt( .241 * r + .691 * g + .068 * b )
+
+def rgb_sort(colours, reverse=False):
     """
     Sorted using RGB, order by red then green then blue.
     :param colours: list of (r, g, b) triples
     :return: returns ordered pixels
     """
-    sorted_col = sorted(colours)
+    sorted_col = sorted(colours, reverse=reverse)
     return sorted_col
 
-def do_sort(pixels, sort_func):
+def do_sort(pixels, sort_func, reverse=False):
     """
     Sorted using the given function, returns sorted pixels
     :param pixels: list of dictionary where col = (r,g,b), pos = (x,y)
@@ -46,13 +52,13 @@ def do_sort(pixels, sort_func):
     pos = [pixel["pos"] for pixel in pixels]
     col = [pixel["col"] for pixel in pixels]
 
-    sorted_col = sort_func(col)
+    sorted_col = sort_func(col, reverse)
 
     #combine back to positions
     out = [{"pos":pos, "col":col} for (pos,col) in zip(pos,sorted_col)]
     return out
 
-def get_pixels(image_dic, origin, length, d_angle):
+def pixels_angle_select(image_dic, origin, length, d_angle, wrapx=False, wrapy=False):
     """
     Gets the list of pixels and positions a long a given line using origin, angle and length.
     Wraps the pixels in the X & Y direction.
@@ -72,13 +78,76 @@ def get_pixels(image_dic, origin, length, d_angle):
         y = or_y + i * sin(angle)
 
         # Wrap
-        x = x % image_dic["width"]
-        y = y % image_dic["height"]
+        if wrapx:
+            x = x % image_dic["width"]
+        else:
+            if x < 0 or x >= image_dic["width"]:
+                break
+
+        if wrapy:
+            y = y % image_dic["height"]
+        else:
+            if y < 0 or y >= image_dic["height"]:
+                break
 
         r, g, b = image_dic["im"].getpixel((x, y))
         pixels.append({"col": (r, g, b) , "pos": (x,y)})
 
     return pixels
+
+def pixel_horizontal_select(image_dic, origin, length, wrap=False):
+    pixels = []
+    or_x, or_y = origin
+    for i in range(length):
+        x = or_x + i
+
+        if wrap:
+            x = x % image_dic["width"]
+        else:
+            if x < 0 or x >= image_dic["width"]:
+                break
+
+        r, g, b = image_dic["im"].getpixel((x, or_y))
+        pixels.append({"col": (r, g, b) , "pos": (x,or_y)})
+
+    return pixels
+
+def pixel_vertical_select(image_dic, origin, length, wrap=False):
+    pixels = []
+    or_x, or_y = origin
+    for i in range(length):
+        y = or_y + i
+
+        if wrap:
+            y = y % image_dic["height"]
+        else:
+            if y < 0 or y >= image_dic["height"]:
+                break
+
+        r, g, b = image_dic["im"].getpixel((or_x, y))
+        pixels.append({"col": (r, g, b) , "pos": (or_x,y)})
+
+    return pixels
+
+
+def pixels_all_select(image_dic):
+    pixels = []
+    for y in range(image_dic["height"]):
+        for x in range(image_dic["width"]):
+            r, g, b = image_dic["im"].getpixel((x, y))
+            pixels.append({"col": (r, g, b) , "pos": (x,y)})
+    return pixels
+
+def get_pixels(image_dic, func, *args, **kwargs):
+    """
+    Use the given function with passed arguments to return the wanted pixels.
+    :param image_dic: dictionary containing the image, with and height {"im": <image>, "width": <int>, "height": <int>}
+    :param func: The pixel selecting function to use
+    :param *args: arguments to call the given function with.
+    :param **kwargs: named arguments to call the given function with.
+    :return: The pixels selected by the given function and selected arguments
+    """
+    return func(image_dic, *args, **kwargs)
 
 def write_pixels(image, pixels):
     """
@@ -98,7 +167,7 @@ if __name__ == "__main__":
     if image_dic:
         out_img = image_dic["im"].copy()
         length = 20
-        angle = 0
+        angle = 45
         # for y in range(image_dic["height"]):
         #     for x in range(image_dic["width"]):
         #         pixels = get_pixels(image_dic, (x,y), length, angle)
@@ -106,9 +175,9 @@ if __name__ == "__main__":
         #         write_pixels(out_img, pixels)
         x = 0
         y = 0
-        length = image_dic["width"]
-        for y in range(image_dic["height"]):
-            pixels = get_pixels(image_dic, (x,y), length, angle)
-            pixels = do_sort(pixels, rgb_sort)
+        length = 10
+        for y in range(image_dic["width"]):
+            pixels = pixel_vertical_select(image_dic,(y,0),image_dic["height"])
+            pixels = do_sort(pixels, rgb_sort,reverse=True)
             write_pixels(out_img, pixels)
         save_image(out_img, "output")
